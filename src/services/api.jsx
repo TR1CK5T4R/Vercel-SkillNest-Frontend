@@ -44,15 +44,24 @@ axiosInstance.interceptors.response.use(
 
             switch (status) {
                 case 401:
-                    // Unauthorized - token expired or invalid
-                    console.error('Unauthorized access - logging out');
+                    // Don't redirect if already on login page or if this is a login attempt
+                    const isLoginPage = window.location.pathname === '/login';
+                    const isLoginRequest = error.config?.url?.includes('/login');
 
-                    // Clear auth data
-                    localStorage.removeItem('skillnest_token');
-                    localStorage.removeItem('skillnest_user');
+                    if (!isLoginPage && !isLoginRequest) {
+                        // Unauthorized - token expired or invalid
+                        console.error('Unauthorized access - logging out');
 
-                    // Redirect to login page
-                    window.location.href = '/login';
+                        // Clear auth data
+                        localStorage.removeItem('skillnest_token');
+                        localStorage.removeItem('skillnest_user');
+
+                        // Redirect to login page
+                        window.location.href = '/login';
+                    } else {
+                        // On login page, just show the error
+                        console.error('Login failed:', data?.message);
+                    }
                     break;
 
                 case 403:
@@ -86,53 +95,51 @@ axiosInstance.interceptors.response.use(
 // AUTH API FUNCTIONS
 
 export const login = async (credentials) => {
-    console.log(' API: Sending login request...');
-    console.log(' API: URL:', `${API_BASE_URL}/auth/login`);
-    console.log(' API: Credentials:', credentials);
+    try {
+        const response = await axiosInstance.post('/users/login', credentials);
 
-    const response = await axiosInstance.post('/users/login', credentials);
+        const apiResponse = response.data;
 
-    console.log(' API: Raw axios response:', response);
-    console.log(' API: response.data:', response.data);
+        // Return in the format AuthContext expects
+        const transformedResponse = {
+            success: apiResponse.success,
+            token: apiResponse.data.accessToken,  // accessToken from your backend
+            user: {
+                _id: apiResponse.data.user._id,
+                email: apiResponse.data.user.email,
+                firstName: apiResponse.data.user.username,  // Using username as firstName
+                lastName: '',  // Your backend doesn't have lastName
+                role: apiResponse.data.user.role || 'user'  // Default to 'user' if no role
+            }
+        };
 
-    const apiResponse = response.data;
 
-    console.log(' API: apiResponse:', apiResponse);
-    console.log(' API: apiResponse.data:', apiResponse.data);
-    console.log(' API: apiResponse.data.accessToken:', apiResponse.data?.accessToken);
-    console.log('🟡API: apiResponse.data.user:', apiResponse.data?.user);
+        return transformedResponse;
+    } catch (error) {
+        {
+            console.error(' API: Login request failed:', error);
 
-
-    // Return in the format AuthContext expects
-    const transformedResponse = {
-        success: apiResponse.success,
-        token: apiResponse.data.accessToken,  // accessToken from your backend
-        user: {
-            _id: apiResponse.data.user._id,
-            email: apiResponse.data.user.email,
-            firstName: apiResponse.data.user.username,  // Using username as firstName
-            lastName: '',  // Your backend doesn't have lastName
-            role: apiResponse.data.user.role || 'user'  // Default to 'user' if no role
+            // Handle axios error response
+            if (error.response) {
+                // Server responded with error status (400, 401, etc.)
+                console.error(' API: Server error response:', error.response.data);
+                throw new Error(error.response.data?.message || 'Invalid email or password');
+            } else if (error.request) {
+                // Request made but no response received
+                console.error(' API: No response received');
+                throw new Error('Network error - please check your connection');
+            } else {
+                // Something else happened
+                console.error(' API: Error:', error.message);
+                throw new Error(error.message || 'Login failed');
+            }
         }
     };
-
-    console.log('API: Transformed response:', transformedResponse);
-    console.log('API: Returning token:', transformedResponse.token);
-    console.log(' API: Returning user:', transformedResponse.user);
-
-    return transformedResponse;
-};
+}
 
 export const register = async (userData) => {
-    console.log(' API: Sending register request...');
 
     const response = await axiosInstance.post('/users/register', userData);
-
-    console.log('🔍 response.data:', response.data);
-    console.log('🔍 response.data.data:', response.data.data);
-    console.log('🔍 response.data.data.user:', response.data.data?.user);
-
-    console.log('API: Register response:', response.data);
 
     const apiResponse = response.data;
 
