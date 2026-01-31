@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // Base API URL - change this based on your environment
-const API_BASE_URL = 'http://localhost:8001/api/v1';
+// const API_BASE_URL = 'http://localhost:8001/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 // Create axios instance
 const axiosInstance = axios.create({
